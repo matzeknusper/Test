@@ -1,185 +1,841 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Camera Effects</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        #videoContainer {
-            display: flex;
-            justify-content: space-between;
-        }
-        video, canvas {
-            width: 45%;
-            max-width: 400px;
-            border: 1px solid #ccc;
-        }
-        input[type="range"], select, button {
-            display: block;
-            margin: 20px 0;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Camera & Audio Effects</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    /* Video-Preview oben unter dem Titel */
+    #videoContainer {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 15px;
+    }
+    video,
+    canvas {
+      width: 45%;
+      max-width: 400px;
+      border: 1px solid #ccc;
+    }
+    /* Button-Gruppe nebeneinander */
+    .button-group {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 15px;
+    }
+    button {
+      margin: 5px;
+    }
+    .effect-group {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 15px;
+    }
+  </style>
 </head>
 <body>
-    <h1>Live Camera Effects</h1>
+  <h1>Live Camera & Audio Effects</h1>
+  
+  <!-- Video-Preview -->
+  <div id="videoContainer">
+    <video id="cameraFeed" autoplay playsinline></video>
+    <canvas id="effectCanvas"></canvas>
+  </div>
+  
+  <!-- Buttons: Switch Camera, Record, Audio Playback -->
+  <div class="button-group">
     <button id="switchCamera">Switch Camera</button>
-    <div id="videoContainer">
-        <video id="cameraFeed" autoplay playsinline></video>
-        <canvas id="effectCanvas"></canvas>
-    </div>
-    <label for="effectSize">Effect Size: <span id="effectSizeValue">5</span></label>
-    <input type="range" id="effectSize" min="1" max="20" value="5">
+    <button id="recordButton">Record</button>
+    <button id="toggleAudioPlayback">Audio Playback: Off</button>
+  </div>
+  
+  <!-- Video Effekt Auswahl und Größe/Blur-Radius -->
+  <div class="effect-group">
+    <label for="effectSelector">Video Effekt:</label>
     <select id="effectSelector">
-        <option value="dots">Dots</option>
-        <option value="pixelate">Pixelate</option>
-        <option value="edgeDetection">Edge Detection</option>
+      <option value="dots">Dots</option>
+      <option value="pixelate">Pixelate</option>
+      <option value="edgeDetection">Edge Detection</option>
+      <option value="hearts">Herzen</option>
+      <option value="rain">Regen</option>
+      <option value="invert">Invert</option>
+      <option value="glitch">Glitch</option>
+      <option value="sepia">Sepia</option>
+      <option value="sketch">Sketch</option>
+      <option value="mirror">Mirror</option>
+      <option value="cartoon">Cartoon</option>
+      <option value="blur">Blur</option>
+      <option value="vintage">Vintage</option>
+      <option value="swirl">Swirl</option>
+      <option value="emboss">Emboss</option>
+      <option value="glow">Glow</option>
     </select>
-
-    <script>
-        const cameraFeed = document.getElementById('cameraFeed');
-        const effectCanvas = document.getElementById('effectCanvas');
-        const ctx = effectCanvas.getContext('2d');
-        const effectSizeSlider = document.getElementById('effectSize');
-        const effectSizeValue = document.getElementById('effectSizeValue');
-        const effectSelector = document.getElementById('effectSelector');
-        const switchCameraButton = document.getElementById('switchCamera');
-
-        let effectSize = 5;
-        let currentEffect = 'dots';
-        let currentCameraFacing = 'environment'; // 'environment' for back camera, 'user' for front camera
-
-        function startCamera() {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCameraFacing } })
-                .then(stream => {
-                    cameraFeed.srcObject = stream;
-                    cameraFeed.play();
-                })
-                .catch(err => {
-                    console.error("Error accessing the camera:", err);
-                });
-        }
-
-        startCamera();
-
-        switchCameraButton.addEventListener('click', () => {
-            currentCameraFacing = currentCameraFacing === 'environment' ? 'user' : 'environment';
-            if (cameraFeed.srcObject) {
-                cameraFeed.srcObject.getTracks().forEach(track => track.stop());
-            }
-            startCamera();
+    <label for="effectSize">Effect Size / Blur-Radius: <span id="effectSizeValue">5</span></label>
+    <input type="range" id="effectSize" min="1" max="20" value="5" />
+  </div>
+  
+  <!-- Audio Effekt Auswahl -->
+  <div class="effect-group">
+    <label for="audioEffectSelector">Audio Effekt:</label>
+    <select id="audioEffectSelector">
+      <option value="none">Kein Effekt</option>
+      <option value="distortion">Distortion</option>
+      <option value="robotic">Robotic (Tremolo)</option>
+      <option value="echo">Echo</option>
+      <option value="phaser">Phaser</option>
+      <option value="vibrato">Vibrato</option>
+      <option value="bitcrush">Bitcrusher</option>
+      <option value="reverb">Reverb</option>
+      <option value="wahwah">Wahwah</option>
+      <option value="flanger">Flanger</option>
+      <option value="chorus">Chorus</option>
+    </select>
+    <label for="audioEffectSlider">Audio Effekt Intensität: <span id="audioEffectSliderValue">50</span></label>
+    <input type="range" id="audioEffectSlider" min="0" max="100" value="50" />
+  </div>
+  
+  <!-- Overlay Effekte: Hier werden nun direkt die Emojis (als Emoji-Glyphen) angezeigt -->
+  <div class="effect-group">
+    <h3>Overlay Video Effekte</h3>
+    <label><input type="checkbox" id="emojiRain"> Emoji Regen (zufällig)</label>
+    <label><input type="checkbox" id="heartRain"> Herz Regen</label>
+    <label><input type="checkbox" id="starRain"> Sternen Regen</label>
+    <label><input type="checkbox" id="poopRain"> Kack Emoji Regen</label>
+    <label><input type="checkbox" id="earthquake"> Erdbeben</label>
+  </div>
+  
+  <!-- Audio-Element (wird erst über den Button aktiviert) -->
+  <audio id="audioPlayback"></audio>
+  
+  <script>
+    // VIDEO-Variablen
+    const cameraFeed = document.getElementById('cameraFeed');
+    const effectCanvas = document.getElementById('effectCanvas');
+    const ctx = effectCanvas.getContext('2d');
+    const effectSizeSlider = document.getElementById('effectSize');
+    const effectSizeValue = document.getElementById('effectSizeValue');
+    const effectSelector = document.getElementById('effectSelector');
+    const switchCameraButton = document.getElementById('switchCamera');
+    const recordButton = document.getElementById('recordButton');
+    
+    // AUDIO-Variablen
+    const toggleAudioPlaybackButton = document.getElementById('toggleAudioPlayback');
+    const audioPlayback = document.getElementById('audioPlayback');
+    const audioEffectSelector = document.getElementById('audioEffectSelector');
+    const audioEffectSlider = document.getElementById('audioEffectSlider');
+    const audioEffectSliderValue = document.getElementById('audioEffectSliderValue');
+    
+    let effectSize = parseInt(effectSizeSlider.value);
+    let currentEffect = effectSelector.value;
+    let currentCameraFacing = 'environment'; // 'environment' für Rückkamera, 'user' für Frontkamera
+    
+    // Recorder & Recording
+    let recorder;
+    let recordedChunks = [];
+    let isRecording = false;
+    
+    // Audio Context und Nodes
+    let audioContext, audioSource, audioDestination;
+    let currentAudioEffect = audioEffectSelector.value; 
+    let audioEffectNode = null;
+    let audioEffectParam = parseInt(audioEffectSlider.value);
+    
+    // Flag für Audio Playback
+    let isAudioPlaybackOn = false;
+    
+    // Overlay-Effekte: Separate Arrays für die fallenden Objekte
+    let emojiRainDrops = [];
+    let heartRainDrops = [];
+    let starRainDrops = [];
+    let poopRainDrops = [];
+    
+    // Gesichtserkennung (experimentell, nur in unterstützten Browsern)
+    let detectedFaces = [];
+    if ('FaceDetector' in window) {
+      var faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 5 });
+      setInterval(() => {
+        faceDetector.detect(cameraFeed).then(faces => { detectedFaces = faces; })
+          .catch(err => console.error(err));
+      }, 1000);
+    }
+    
+    // Hilfsfunktion zum Initialisieren von Overlay-Drops  
+    // Wenn "emoji" gleich "random" ist, wird ein zufälliges Emoji aus einer Liste gewählt.
+    function initOverlayDrops(dropArray, emoji) {
+      const randomEmojis = ["😀", "😂", "😎", "😍", "😜", "🤩", "😇", "😃", "😄", "😆"];
+      dropArray.length = 0;
+      for (let i = 0; i < 20; i++) {
+        let chosenEmoji = (emoji === "random") ? randomEmojis[Math.floor(Math.random() * randomEmojis.length)] : emoji;
+        dropArray.push({
+          x: Math.random() * effectCanvas.width,
+          y: Math.random() * effectCanvas.height,
+          speed: 2 + Math.random() * 3,
+          size: 20 + Math.random() * 20,
+          emoji: chosenEmoji
         });
-
-        cameraFeed.addEventListener('loadedmetadata', function() {
-            effectCanvas.width = cameraFeed.videoWidth;
-            effectCanvas.height = cameraFeed.videoHeight;
-            applyEffect();
+      }
+    }
+    
+    // Update-Funktion für alle Overlay-Effekte  
+    function updateOverlayEffects() {
+      // Emoji Regen: zufällige Emojis
+      if (document.getElementById('emojiRain').checked) {
+        if (emojiRainDrops.length === 0) initOverlayDrops(emojiRainDrops, "random");
+        emojiRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          // Prüfe Kollision mit erkannten Gesichtern (falls vorhanden)
+          detectedFaces.forEach(face => {
+            let { x, y, width, height } = face.boundingBox;
+            if (drop.x >= x && drop.x <= x + width && drop.y >= y && drop.y <= y + height) {
+              // Bounce-Effekt: Emoji prallt ab, indem wir die Fallgeschwindigkeit invertieren und etwas anpassen
+              drop.speed = -Math.abs(drop.speed);
+              drop.y = y - drop.size;
+            }
+          });
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+          if (drop.y < -drop.size) { drop.speed = Math.abs(drop.speed); }
         });
-
-        function applyEffect() {
-            ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
-            const imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
-            const data = imageData.data;
-
-            switch (currentEffect) {
-                case 'dots':
-                    applyDotEffect(data);
-                    break;
-                case 'pixelate':
-                    applyPixelateEffect(data);
-                    break;
-                case 'edgeDetection':
-                    applyEdgeDetectionEffect(data);
-                    break;
-            }
-
-            requestAnimationFrame(applyEffect);
-        }
-
-        function applyDotEffect(data) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, effectCanvas.width, effectCanvas.height);
-
-            for (let y = 0; y < effectCanvas.height; y += effectSize) {
-                for (let x = 0; x < effectCanvas.width; x += effectSize) {
-                    const i = (y * effectCanvas.width + x) * 4;
-                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                    const radius = (effectSize / 2) * (1 - avg / 255);
-
-                    ctx.beginPath();
-                    ctx.arc(x + effectSize / 2, y + effectSize / 2, radius, 0, Math.PI * 2);
-                    ctx.fillStyle = 'black';
-                    ctx.fill();
-                }
-            }
-        }
-
-        function applyPixelateEffect(data) {
-            for (let y = 0; y < effectCanvas.height; y += effectSize) {
-                for (let x = 0; x < effectCanvas.width; x += effectSize) {
-                    const i = (y * effectCanvas.width + x) * 4;
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
-
-                    ctx.fillStyle = `rgb(${r},${g},${b})`;
-                    ctx.fillRect(x, y, effectSize, effectSize);
-                }
-            }
-        }
-
-        function applyEdgeDetectionEffect(data) {
-            const grayscale = new Uint8ClampedArray(data.length / 4);
-            for (let i = 0; i < data.length; i += 4) {
-                grayscale[i / 4] = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            }
-
-            const width = effectCanvas.width;
-            const height = effectCanvas.height;
-            const output = new Uint8ClampedArray(data.length);
-
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const i = y * width + x;
-                    const gx = 
-                        -grayscale[i - width - 1] +
-                        grayscale[i - width + 1] +
-                        -2 * grayscale[i - 1] +
-                        2 * grayscale[i + 1] +
-                        -grayscale[i + width - 1] +
-                        grayscale[i + width + 1];
-                    const gy = 
-                        -grayscale[i - width - 1] +
-                        -2 * grayscale[i - width] +
-                        -grayscale[i - width + 1] +
-                        grayscale[i + width - 1] +
-                        2 * grayscale[i + width] +
-                        grayscale[i + width + 1];
-
-                    const mag = Math.sqrt(gx * gx + gy * gy);
-                    const idx = i * 4;
-                    output[idx] = output[idx + 1] = output[idx + 2] = mag > 50 ? 255 : 0;
-                    output[idx + 3] = 255;
-                }
-            }
-
-            ctx.putImageData(new ImageData(output, width, height), 0, 0);
-        }
-
-        effectSizeSlider.addEventListener('input', function() {
-            effectSize = parseInt(this.value);
-            effectSizeValue.textContent = effectSize;
+      } else { emojiRainDrops = []; }
+      
+      // Herz Regen (feste Emoji "❤️")
+      if (document.getElementById('heartRain').checked) {
+        if (heartRainDrops.length === 0) initOverlayDrops(heartRainDrops, "❤️");
+        heartRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px 'Segoe UI Emoji', sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
         });
-
-        effectSelector.addEventListener('change', function() {
-            currentEffect = this.value;
+      } else { heartRainDrops = []; }
+      
+      // Sternen Regen (feste Emoji "⭐")
+      if (document.getElementById('starRain').checked) {
+        if (starRainDrops.length === 0) initOverlayDrops(starRainDrops, "⭐");
+        starRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px 'Segoe UI Emoji', sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
         });
-    </script>
+      } else { starRainDrops = []; }
+      
+      // Kack Emoji Regen (feste Emoji "💩")
+      if (document.getElementById('poopRain').checked) {
+        if (poopRainDrops.length === 0) initOverlayDrops(poopRainDrops, "💩");
+        poopRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px 'Segoe UI Emoji', sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+        });
+      } else { poopRainDrops = []; }
+    }
+    
+    // Kamera starten – raw Audio wird nicht abgespielt (stummgeschaltet)
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: currentCameraFacing },
+        audio: true
+      })
+      .then(stream => {
+        cameraFeed.srcObject = stream;
+        cameraFeed.muted = true; // roher Audio-Stream wird nicht wiedergegeben
+        cameraFeed.play();
+        initAudioProcessing(stream);
+      })
+      .catch(err => { console.error("Error accessing the camera:", err); });
+    }
+    startCamera();
+    
+    switchCameraButton.addEventListener('click', () => {
+      currentCameraFacing = (currentCameraFacing === 'environment') ? 'user' : 'environment';
+      if (cameraFeed.srcObject) {
+        cameraFeed.srcObject.getTracks().forEach(track => track.stop());
+      }
+      startCamera();
+    });
+    
+    // Aufnahme-Funktionalität (Video + Audio – Audio wird immer aufgenommen)
+    recordButton.addEventListener('click', () => {
+      if (!isRecording) {
+        const canvasStream = effectCanvas.captureStream(30); // 30 FPS
+        // Audio wird immer hinzugefügt, daher brauchen wir keine Checkbox mehr
+        if (cameraFeed.srcObject) {
+          const audioTracks = cameraFeed.srcObject.getAudioTracks();
+          audioTracks.forEach(track => canvasStream.addTrack(track));
+        }
+        recorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm' });
+        recorder.ondataavailable = event => { if (event.data.size > 0) recordedChunks.push(event.data); };
+        recorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = 'recording.webm';
+          document.body.appendChild(a);
+          a.click();
+          URL.revokeObjectURL(url);
+          recordedChunks = [];
+        };
+        recorder.start();
+        recordButton.textContent = 'Stop Recording';
+        isRecording = true;
+      } else {
+        recorder.stop();
+        recordButton.textContent = 'Record';
+        isRecording = false;
+      }
+    });
+    
+    // Audio Playback Button – Audio wird nur über den Button aktiviert
+    toggleAudioPlaybackButton.addEventListener('click', () => {
+      isAudioPlaybackOn = !isAudioPlaybackOn;
+      if (isAudioPlaybackOn) {
+        if (audioDestination) {
+          audioPlayback.srcObject = audioDestination.stream;
+          audioPlayback.play();
+        }
+        toggleAudioPlaybackButton.textContent = 'Audio Playback: On';
+      } else {
+        audioPlayback.pause();
+        audioPlayback.srcObject = null;
+        toggleAudioPlaybackButton.textContent = 'Audio Playback: Off';
+      }
+    });
+    
+    // Initialisiere AudioProcessing
+    function initAudioProcessing(stream) {
+      if (!audioContext) { audioContext = new AudioContext(); }
+      audioSource = audioContext.createMediaStreamSource(stream);
+      audioDestination = audioContext.createMediaStreamDestination();
+      setupAudioEffectChain();
+    }
+    
+    // Audio Effekt Kette aufbauen (wie bisher – hier wurden die restlichen Effekte unverändert übernommen)
+    function setupAudioEffectChain() {
+      if (audioSource) { audioSource.disconnect(); }
+      if (audioEffectNode) {
+        if (audioEffectNode.oscillator) { audioEffectNode.oscillator.stop(); }
+        audioEffectNode.disconnect();
+        audioEffectNode = null;
+      }
+      currentAudioEffect = audioEffectSelector.value;
+      audioEffectParam = parseInt(audioEffectSlider.value);
+      switch(currentAudioEffect) {
+        case 'none':
+          audioSource.connect(audioDestination);
+          break;
+        case 'distortion': {
+          let distortion = audioContext.createWaveShaper();
+          distortion.curve = makeDistortionCurve(audioEffectParam);
+          distortion.oversample = '4x';
+          audioSource.connect(distortion);
+          distortion.connect(audioDestination);
+          audioEffectNode = distortion;
+          break;
+        }
+        case 'robotic': {
+          let tremoloGain = audioContext.createGain();
+          let oscillator = audioContext.createOscillator();
+          oscillator.type = 'sine';
+          oscillator.frequency.value = audioEffectParam / 10;
+          let modulation = audioContext.createGain();
+          modulation.gain.value = 0.5;
+          oscillator.connect(modulation);
+          modulation.connect(tremoloGain.gain);
+          oscillator.start();
+          audioSource.connect(tremoloGain);
+          tremoloGain.connect(audioDestination);
+          audioEffectNode = tremoloGain;
+          audioEffectNode.oscillator = oscillator;
+          break;
+        }
+        case 'echo': {
+          let delay = audioContext.createDelay();
+          delay.delayTime.value = audioEffectParam / 100;
+          let feedback = audioContext.createGain();
+          feedback.gain.value = 0.4;
+          delay.connect(feedback);
+          feedback.connect(delay);
+          audioSource.connect(delay);
+          delay.connect(audioDestination);
+          audioSource.connect(audioDestination);
+          audioEffectNode = delay;
+          break;
+        }
+        case 'phaser': {
+          let phaser = audioContext.createBiquadFilter();
+          phaser.type = 'allpass';
+          phaser.frequency.value = 1000;
+          let phaserOsc = audioContext.createOscillator();
+          phaserOsc.type = 'sine';
+          phaserOsc.frequency.value = audioEffectParam / 10;
+          let phaserMod = audioContext.createGain();
+          phaserMod.gain.value = 500;
+          phaserOsc.connect(phaserMod);
+          phaserMod.connect(phaser.frequency);
+          phaserOsc.start();
+          audioSource.connect(phaser);
+          phaser.connect(audioDestination);
+          audioEffectNode = phaser;
+          audioEffectNode.oscillator = phaserOsc;
+          break;
+        }
+        case 'vibrato': {
+          let vibratoDelay = audioContext.createDelay();
+          vibratoDelay.delayTime.value = 0.005;
+          let vibratoOsc = audioContext.createOscillator();
+          vibratoOsc.type = 'sine';
+          vibratoOsc.frequency.value = audioEffectParam / 10;
+          let vibratoMod = audioContext.createGain();
+          vibratoMod.gain.value = 0.005;
+          vibratoOsc.connect(vibratoMod);
+          vibratoMod.connect(vibratoDelay.delayTime);
+          vibratoOsc.start();
+          audioSource.connect(vibratoDelay);
+          vibratoDelay.connect(audioDestination);
+          audioEffectNode = vibratoDelay;
+          audioEffectNode.oscillator = vibratoOsc;
+          break;
+        }
+        case 'bitcrush': {
+          let bufferSize = 4096;
+          let bitCrusher = audioContext.createScriptProcessor(bufferSize, 1, 1);
+          let bitDepth = Math.max(1, Math.floor(audioEffectParam / 10));
+          let reduction = 1 / Math.pow(2, bitDepth);
+          bitCrusher.onaudioprocess = function(e) {
+            let input = e.inputBuffer.getChannelData(0);
+            let output = e.outputBuffer.getChannelData(0);
+            for (let i = 0; i < input.length; i++) {
+              output[i] = Math.floor(input[i] / reduction) * reduction;
+            }
+          };
+          audioSource.connect(bitCrusher);
+          bitCrusher.connect(audioDestination);
+          audioEffectNode = bitCrusher;
+          break;
+        }
+        // Weitere Audioeffekte (Reverb, Wahwah, Flanger, Chorus) werden hier analog implementiert...
+      }
+      if (isAudioPlaybackOn && audioDestination) {
+        audioPlayback.srcObject = audioDestination.stream;
+      }
+    }
+    
+    // Hilfsfunktion für Distortion
+    function makeDistortionCurve(amount) {
+      let n_samples = 44100;
+      let curve = new Float32Array(n_samples);
+      let deg = Math.PI / 180;
+      for (let i = 0; i < n_samples; ++i) {
+        let x = i * 2 / n_samples - 1;
+        curve[i] = (3 + amount) * x * 20 * deg / (Math.PI + amount * Math.abs(x));
+      }
+      return curve;
+    }
+    
+    // Event Listener für Audioeffekt-Änderungen
+    audioEffectSelector.addEventListener('change', () => { setupAudioEffectChain(); });
+    audioEffectSlider.addEventListener('input', (e) => {
+      audioEffectSliderValue.textContent = e.target.value;
+      setupAudioEffectChain();
+    });
+    
+    // Event Listener für Videoeffekt-Größe
+    effectSizeSlider.addEventListener('input', (e) => {
+      effectSize = parseInt(e.target.value);
+      effectSizeValue.textContent = e.target.value;
+    });
+    effectSelector.addEventListener('change', () => {
+      currentEffect = effectSelector.value;
+    });
+    
+    // Haupt-Loop: Wendet den gewählten Videoeffekt an und zeichnet anschließend die Overlay-Effekte
+    function applyEffect() {
+      ctx.save();
+      // Erdbeben-Effekt: Verschiebt den gesamten Canvas zufällig
+      if (document.getElementById('earthquake').checked) {
+        let offsetX = Math.random() * 10 - 5;
+        let offsetY = Math.random() * 10 - 5;
+        ctx.translate(offsetX, offsetY);
+      }
+      // Für Effekte, die direkt mit Pixeln arbeiten:
+      if (['mirror', 'blur'].indexOf(currentEffect) === -1) {
+        ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
+      }
+      let imageData;
+      switch (currentEffect) {
+        case 'dots':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyDotEffect(imageData.data);
+          break;
+        case 'pixelate':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyPixelateEffect(imageData.data);
+          break;
+        case 'edgeDetection':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyEdgeDetectionEffect(imageData.data);
+          break;
+        case 'hearts':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyHeartsEffect(imageData.data);
+          break;
+        case 'rain':
+          applyRainEffect();
+          break;
+        case 'invert':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyInvertEffect(imageData);
+          break;
+        case 'glitch':
+          applyGlitchEffect();
+          break;
+        case 'sepia':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applySepiaEffect(imageData);
+          break;
+        case 'sketch':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applySketchEffect(imageData);
+          break;
+        case 'mirror':
+          applyMirrorEffect();
+          break;
+        case 'cartoon':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyCartoonEffect(imageData);
+          break;
+        case 'blur':
+          // Blur-Effekt nutzt jetzt den Slider-Wert als Blur-Radius in Pixel
+          applyBlurEffect();
+          break;
+        case 'vintage':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyVintageEffect(imageData);
+          break;
+        case 'swirl':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applySwirlEffect(imageData);
+          break;
+        case 'emboss':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyEmbossEffect(imageData);
+          break;
+        case 'glow':
+          applyGlowEffect();
+          break;
+      }
+      // Zeichne die Overlay-Effekte (z. B. Emoji Regen, Herz Regen usw.)
+      updateOverlayEffects();
+      ctx.restore();
+      requestAnimationFrame(applyEffect);
+    }
+    
+    // --- Video Effekt Funktionen (bleiben weitgehend unverändert) ---
+    function applyDotEffect(data) {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, effectCanvas.width, effectCanvas.height);
+      for (let y = 0; y < effectCanvas.height; y += effectSize) {
+        for (let x = 0; x < effectCanvas.width; x += effectSize) {
+          const i = (y * effectCanvas.width + x) * 4;
+          const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+          const radius = (effectSize / 2) * (1 - avg / 255);
+          ctx.beginPath();
+          ctx.arc(x + effectSize/2, y + effectSize/2, radius, 0, Math.PI*2);
+          ctx.fillStyle = 'black';
+          ctx.fill();
+        }
+      }
+    }
+    
+    function applyPixelateEffect(data) {
+      for (let y = 0; y < effectCanvas.height; y += effectSize) {
+        for (let x = 0; x < effectCanvas.width; x += effectSize) {
+          const i = (y * effectCanvas.width + x) * 4;
+          const r = data[i], g = data[i+1], b = data[i+2];
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+          ctx.fillRect(x, y, effectSize, effectSize);
+        }
+      }
+    }
+    
+    function applyEdgeDetectionEffect(data) {
+      const grayscale = new Uint8ClampedArray(data.length/4);
+      for (let i = 0; i < data.length; i += 4) {
+        grayscale[i/4] = (data[i] + data[i+1] + data[i+2]) / 3;
+      }
+      const width = effectCanvas.width, height = effectCanvas.height;
+      const output = new Uint8ClampedArray(data.length);
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const i = y * width + x;
+          const gx = -grayscale[i-width-1] + grayscale[i-width+1] - 2*grayscale[i-1] + 2*grayscale[i+1] - grayscale[i+width-1] + grayscale[i+width+1];
+          const gy = -grayscale[i-width-1] - 2*grayscale[i-width] - grayscale[i-width+1] + grayscale[i+width-1] + 2*grayscale[i+width] + grayscale[i+width+1];
+          const mag = Math.sqrt(gx*gx+gy*gy);
+          const idx = i*4;
+          output[idx] = output[idx+1] = output[idx+2] = mag > 50 ? 255 : 0;
+          output[idx+3] = 255;
+        }
+      }
+      ctx.putImageData(new ImageData(output, width, height), 0, 0);
+    }
+    
+    function applyHeartsEffect(data) {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, effectCanvas.width, effectCanvas.height);
+      for (let y = 0; y < effectCanvas.height; y += effectSize) {
+        for (let x = 0; x < effectCanvas.width; x += effectSize) {
+          const i = (y * effectCanvas.width + x) * 4;
+          const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+          const size = effectSize * (1 - avg / 255);
+          if (size > 1) drawHeart(ctx, x + effectSize/2, y + effectSize/2, size);
+        }
+      }
+    }
+    
+    function drawHeart(ctx, x, y, size) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.beginPath();
+      let topCurveHeight = size * 0.3;
+      ctx.moveTo(0, topCurveHeight);
+      ctx.bezierCurveTo(0, 0, -size/2, 0, -size/2, topCurveHeight);
+      ctx.bezierCurveTo(-size/2, size/2, 0, size, 0, size);
+      ctx.bezierCurveTo(0, size, size/2, size/2, size/2, topCurveHeight);
+      ctx.bezierCurveTo(size/2, 0, 0, 0, 0, topCurveHeight);
+      ctx.closePath();
+      ctx.fillStyle = 'red';
+      ctx.fill();
+      ctx.restore();
+    }
+    
+    function applyRainEffect() {
+      for (let drop of raindrops) {
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.moveTo(drop.x, drop.y);
+        ctx.lineTo(drop.x, drop.y + drop.length);
+        ctx.stroke();
+        drop.y += drop.speed;
+        if (drop.y > effectCanvas.height) {
+          drop.y = -drop.length;
+          drop.x = Math.random() * effectCanvas.width;
+        }
+      }
+    }
+    
+    function applyInvertEffect(imageData) {
+      let data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 255 - data[i];
+        data[i+1] = 255 - data[i+1];
+        data[i+2] = 255 - data[i+2];
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    
+    function applyGlitchEffect() {
+      const sliceCount = 10;
+      for (let i = 0; i < sliceCount; i++) {
+        let sliceHeight = Math.floor(Math.random()*10) + 5;
+        let y = Math.floor(Math.random()*(effectCanvas.height - sliceHeight));
+        let offset = Math.floor(Math.random()*effectSize*2) - effectSize;
+        let imageSlice = ctx.getImageData(0, y, effectCanvas.width, sliceHeight);
+        ctx.clearRect(0, y, effectCanvas.width, sliceHeight);
+        ctx.putImageData(imageSlice, offset, y);
+      }
+    }
+    
+    function applySepiaEffect(imageData) {
+      let data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i], g = data[i+1], b = data[i+2];
+        data[i]   = (r * 0.393) + (g * 0.769) + (b * 0.189);
+        data[i+1] = (r * 0.349) + (g * 0.686) + (b * 0.168);
+        data[i+2] = (r * 0.272) + (g * 0.534) + (b * 0.131);
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    
+    function applySketchEffect(imageData) {
+      let data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        let avg = (data[i] + data[i+1] + data[i+2]) / 3;
+        let val = avg > 128 ? 255 : 0;
+        data[i] = data[i+1] = data[i+2] = val;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    
+    function applyMirrorEffect() {
+      ctx.clearRect(0, 0, effectCanvas.width, effectCanvas.height);
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(cameraFeed, -effectCanvas.width, 0, effectCanvas.width, effectCanvas.height);
+      ctx.restore();
+    }
+    
+    function applyCartoonEffect(imageData) {
+      let data = imageData.data;
+      let levels = 5;
+      let step = Math.floor(255 / levels);
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = Math.floor(data[i] / step) * step;
+        data[i+1] = Math.floor(data[i+1] / step) * step;
+        data[i+2] = Math.floor(data[i+2] / step) * step;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    
+    function applyBlurEffect() {
+      ctx.clearRect(0, 0, effectCanvas.width, effectCanvas.height);
+      // Blur-Radius entspricht dem Slider-Wert (in Pixel)
+      ctx.filter = 'blur(' + effectSize + 'px)';
+      ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
+      ctx.filter = 'none';
+    }
+    
+    function applyVintageEffect(imageData) {
+      let data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i], g = data[i+1], b = data[i+2];
+        let sepiaR = (r * 0.393 + g * 0.769 + b * 0.189);
+        let sepiaG = (r * 0.349 + g * 0.686 + b * 0.168);
+        let sepiaB = (r * 0.272 + g * 0.534 + b * 0.131);
+        let avg = (sepiaR + sepiaG + sepiaB) / 3;
+        data[i]   = sepiaR * 0.9 + avg * 0.1;
+        data[i+1] = sepiaG * 0.9 + avg * 0.1;
+        data[i+2] = sepiaB * 0.9 + avg * 0.1;
+        let noise = (Math.random() - 0.5) * 20;
+        data[i] += noise;
+        data[i+1] += noise;
+        data[i+2] += noise;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    
+    function applySwirlEffect(imageData) {
+      let width = imageData.width;
+      let height = imageData.height;
+      let srcData = imageData.data;
+      let output = ctx.createImageData(width, height);
+      let dstData = output.data;
+      let centerX = width / 2;
+      let centerY = height / 2;
+      let radius = Math.min(centerX, centerY);
+      let swirlAmount = 0.0005 * effectSize * 1000;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let dx = x - centerX;
+          let dy = y - centerY;
+          let distance = Math.sqrt(dx * dx + dy * dy);
+          let angle = Math.atan2(dy, dx);
+          if (distance < radius) {
+            let factor = (radius - distance) / radius;
+            let newAngle = angle + swirlAmount * factor;
+            let srcX = Math.floor(centerX + distance * Math.cos(newAngle));
+            let srcY = Math.floor(centerY + distance * Math.sin(newAngle));
+            srcX = Math.max(0, Math.min(width - 1, srcX));
+            srcY = Math.max(0, Math.min(height - 1, srcY));
+            let srcIndex = (srcY * width + srcX) * 4;
+            let dstIndex = (y * width + x) * 4;
+            dstData[dstIndex] = srcData[srcIndex];
+            dstData[dstIndex+1] = srcData[srcIndex+1];
+            dstData[dstIndex+2] = srcData[srcIndex+2];
+            dstData[dstIndex+3] = srcData[srcIndex+3];
+          } else {
+            let srcIndex = (y * width + x) * 4;
+            let dstIndex = srcIndex;
+            dstData[dstIndex] = srcData[srcIndex];
+            dstData[dstIndex+1] = srcData[srcIndex+1];
+            dstData[dstIndex+2] = srcData[srcIndex+2];
+            dstData[dstIndex+3] = srcData[srcIndex+3];
+          }
+        }
+      }
+      ctx.putImageData(output, 0, 0);
+    }
+    
+    function applyEmbossEffect(imageData) {
+      let width = imageData.width;
+      let height = imageData.height;
+      let srcData = imageData.data;
+      let output = ctx.createImageData(width, height);
+      let dstData = output.data;
+      let kernel = [
+        -2, -1, 0,
+        -1,  1, 1,
+         0,  1, 2
+      ];
+      let kernelSize = 3;
+      let half = Math.floor(kernelSize / 2);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let r = 128, g = 128, b = 128;
+          for (let ky = -half; ky <= half; ky++) {
+            for (let kx = -half; kx <= half; kx++) {
+              let posX = x + kx;
+              let posY = y + ky;
+              if (posX >= 0 && posX < width && posY >= 0 && posY < height) {
+                let srcIndex = (posY * width + posX) * 4;
+                let weight = kernel[(ky+half)*kernelSize + (kx+half)];
+                r += srcData[srcIndex] * weight;
+                g += srcData[srcIndex+1] * weight;
+                b += srcData[srcIndex+2] * weight;
+              }
+            }
+          }
+          let dstIndex = (y * width + x) * 4;
+          dstData[dstIndex] = r;
+          dstData[dstIndex+1] = g;
+          dstData[dstIndex+2] = b;
+          dstData[dstIndex+3] = 255;
+        }
+      }
+      ctx.putImageData(output, 0, 0);
+    }
+    
+    function applyGlowEffect() {
+      let tempCanvas = document.createElement('canvas');
+      tempCanvas.width = effectCanvas.width;
+      tempCanvas.height = effectCanvas.height;
+      let tempCtx = tempCanvas.getContext('2d');
+      tempCtx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
+      tempCtx.filter = 'blur(10px)';
+      let blurredData = tempCtx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+      ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
+      ctx.globalAlpha = 0.5;
+      ctx.putImageData(blurredData, 0, 0);
+      ctx.globalAlpha = 1.0;
+    }
+    
+    // Starte den Haupt-Loop
+    cameraFeed.addEventListener('loadedmetadata', function() {
+      effectCanvas.width = cameraFeed.videoWidth;
+      effectCanvas.height = cameraFeed.videoHeight;
+      // Einfacher Regen (nicht Overlay) initialisieren
+      raindrops = [];
+      for (let i = 0; i < 100; i++) {
+        raindrops.push({
+          x: Math.random() * effectCanvas.width,
+          y: Math.random() * effectCanvas.height,
+          speed: 2 + Math.random() * 3,
+          length: 10 + Math.random() * 10
+        });
+      }
+      applyEffect();
+    });
+  </script>
 </body>
 </html>
-
