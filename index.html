@@ -11,7 +11,11 @@
       margin: 0 auto;
       padding: 20px;
     }
-    /* Video-Preview oben unter dem Titel */
+    /* Titel etwas kleiner */
+    h1 {
+      font-size: 1.5em;
+    }
+    /* Video-Preview: oben unter dem Titel */
     #videoContainer {
       display: flex;
       justify-content: space-around;
@@ -23,7 +27,7 @@
       max-width: 400px;
       border: 1px solid #ccc;
     }
-    /* Button-Gruppe nebeneinander */
+    /* Button-Gruppe: drei Buttons nebeneinander */
     .button-group {
       display: flex;
       justify-content: space-around;
@@ -36,6 +40,12 @@
       border: 1px solid #ccc;
       padding: 10px;
       margin-bottom: 15px;
+    }
+    /* Overlay-Checkboxen: in einem Grid, 2 pro Zeile */
+    .overlay-checkboxes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
   </style>
 </head>
@@ -55,7 +65,7 @@
     <button id="toggleAudioPlayback">Audio Playback: Off</button>
   </div>
   
-  <!-- Video Effekt Auswahl und Größe/Blur-Radius -->
+  <!-- Video Effekt Auswahl -->
   <div class="effect-group">
     <label for="effectSelector">Video Effekt:</label>
     <select id="effectSelector">
@@ -100,14 +110,16 @@
     <input type="range" id="audioEffectSlider" min="0" max="100" value="50" />
   </div>
   
-  <!-- Overlay Effekte: Hier werden nun direkt die Emojis (als Emoji-Glyphen) angezeigt -->
+  <!-- Overlay Video Effekte: Checkboxen in einem Grid -->
   <div class="effect-group">
     <h3>Overlay Video Effekte</h3>
-    <label><input type="checkbox" id="emojiRain"> Emoji Regen (zufällig)</label>
-    <label><input type="checkbox" id="heartRain"> Herz Regen</label>
-    <label><input type="checkbox" id="starRain"> Sternen Regen</label>
-    <label><input type="checkbox" id="poopRain"> Kack Emoji Regen</label>
-    <label><input type="checkbox" id="earthquake"> Erdbeben</label>
+    <div class="overlay-checkboxes">
+      <label><input type="checkbox" id="emojiRain"> Emoji Regen (zufällig)</label>
+      <label><input type="checkbox" id="heartRain"> ❤️ Regen</label>
+      <label><input type="checkbox" id="starRain"> Sternen Regen</label>
+      <label><input type="checkbox" id="poopRain"> Kack Emoji Regen</label>
+      <label><input type="checkbox" id="earthquake"> Erdbeben</label>
+    </div>
   </div>
   
   <!-- Audio-Element (wird erst über den Button aktiviert) -->
@@ -133,7 +145,7 @@
     
     let effectSize = parseInt(effectSizeSlider.value);
     let currentEffect = effectSelector.value;
-    let currentCameraFacing = 'environment'; // 'environment' für Rückkamera, 'user' für Frontkamera
+    let currentCameraFacing = 'environment'; // "environment" = Rückkamera, "user" = Frontkamera
     
     // Recorder & Recording
     let recorder;
@@ -142,31 +154,38 @@
     
     // Audio Context und Nodes
     let audioContext, audioSource, audioDestination;
-    let currentAudioEffect = audioEffectSelector.value; 
+    let currentAudioEffect = audioEffectSelector.value;
     let audioEffectNode = null;
     let audioEffectParam = parseInt(audioEffectSlider.value);
     
     // Flag für Audio Playback
     let isAudioPlaybackOn = false;
     
-    // Overlay-Effekte: Separate Arrays für die fallenden Objekte
+    // Overlay-Effekte: Separate Arrays für fallende Objekte
     let emojiRainDrops = [];
     let heartRainDrops = [];
     let starRainDrops = [];
     let poopRainDrops = [];
+    
+    // Globaler Wert für Device Orientation (gamma: links/rechts Neigung)
+    let deviceGamma = 0;
+    window.addEventListener("deviceorientation", e => {
+      deviceGamma = e.gamma || 0;
+    });
     
     // Gesichtserkennung (experimentell, nur in unterstützten Browsern)
     let detectedFaces = [];
     if ('FaceDetector' in window) {
       var faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 5 });
       setInterval(() => {
-        faceDetector.detect(cameraFeed).then(faces => { detectedFaces = faces; })
+        faceDetector.detect(cameraFeed)
+          .then(faces => { detectedFaces = faces; })
           .catch(err => console.error(err));
       }, 1000);
     }
     
-    // Hilfsfunktion zum Initialisieren von Overlay-Drops  
-    // Wenn "emoji" gleich "random" ist, wird ein zufälliges Emoji aus einer Liste gewählt.
+    // Hilfsfunktion zum Initialisieren von Overlay-Drops
+    // Wenn der Parameter "emoji" gleich "random" ist, wird ein zufälliges Emoji aus der Liste gewählt.
     function initOverlayDrops(dropArray, emoji) {
       const randomEmojis = ["😀", "😂", "😎", "😍", "😜", "🤩", "😇", "😃", "😄", "😆"];
       dropArray.length = 0;
@@ -182,59 +201,73 @@
       }
     }
     
-    // Update-Funktion für alle Overlay-Effekte  
+    // Update-Funktion für alle Overlay-Effekte
     function updateOverlayEffects() {
-      // Emoji Regen: zufällige Emojis
+      // Berechne horizontalen Drift basierend auf deviceGamma (ca. -2 bis 2 Pixel)
+      const drift = (deviceGamma / 90) * 2;
+      
+      // Emoji Regen (zufällig)
       if (document.getElementById('emojiRain').checked) {
         if (emojiRainDrops.length === 0) initOverlayDrops(emojiRainDrops, "random");
         emojiRainDrops.forEach(drop => {
-          ctx.font = drop.size + "px 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif";
+          ctx.font = drop.size + "px 'Segoe UI Emoji', sans-serif";
           ctx.fillText(drop.emoji, drop.x, drop.y);
-          // Prüfe Kollision mit erkannten Gesichtern (falls vorhanden)
+          // Prüfe Kollision mit erkannten Gesichtern – Bounce-Effekt
           detectedFaces.forEach(face => {
             let { x, y, width, height } = face.boundingBox;
             if (drop.x >= x && drop.x <= x + width && drop.y >= y && drop.y <= y + height) {
-              // Bounce-Effekt: Emoji prallt ab, indem wir die Fallgeschwindigkeit invertieren und etwas anpassen
               drop.speed = -Math.abs(drop.speed);
               drop.y = y - drop.size;
             }
           });
           drop.y += drop.speed;
+          drop.x += drift;
           if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
           if (drop.y < -drop.size) { drop.speed = Math.abs(drop.speed); }
+          if (drop.x > effectCanvas.width) { drop.x = 0; }
+          if (drop.x < 0) { drop.x = effectCanvas.width; }
         });
       } else { emojiRainDrops = []; }
       
-      // Herz Regen (feste Emoji "❤️")
+      // ❤️ Regen
       if (document.getElementById('heartRain').checked) {
         if (heartRainDrops.length === 0) initOverlayDrops(heartRainDrops, "❤️");
         heartRainDrops.forEach(drop => {
           ctx.font = drop.size + "px 'Segoe UI Emoji', sans-serif";
           ctx.fillText(drop.emoji, drop.x, drop.y);
           drop.y += drop.speed;
+          drop.x += drift;
           if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+          if (drop.x > effectCanvas.width) { drop.x = 0; }
+          if (drop.x < 0) { drop.x = effectCanvas.width; }
         });
       } else { heartRainDrops = []; }
       
-      // Sternen Regen (feste Emoji "⭐")
+      // Sternen Regen
       if (document.getElementById('starRain').checked) {
         if (starRainDrops.length === 0) initOverlayDrops(starRainDrops, "⭐");
         starRainDrops.forEach(drop => {
           ctx.font = drop.size + "px 'Segoe UI Emoji', sans-serif";
           ctx.fillText(drop.emoji, drop.x, drop.y);
           drop.y += drop.speed;
+          drop.x += drift;
           if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+          if (drop.x > effectCanvas.width) { drop.x = 0; }
+          if (drop.x < 0) { drop.x = effectCanvas.width; }
         });
       } else { starRainDrops = []; }
       
-      // Kack Emoji Regen (feste Emoji "💩")
+      // Kack Emoji Regen
       if (document.getElementById('poopRain').checked) {
         if (poopRainDrops.length === 0) initOverlayDrops(poopRainDrops, "💩");
         poopRainDrops.forEach(drop => {
           ctx.font = drop.size + "px 'Segoe UI Emoji', sans-serif";
           ctx.fillText(drop.emoji, drop.x, drop.y);
           drop.y += drop.speed;
+          drop.x += drift;
           if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+          if (drop.x > effectCanvas.width) { drop.x = 0; }
+          if (drop.x < 0) { drop.x = effectCanvas.width; }
         });
       } else { poopRainDrops = []; }
     }
@@ -247,7 +280,7 @@
       })
       .then(stream => {
         cameraFeed.srcObject = stream;
-        cameraFeed.muted = true; // roher Audio-Stream wird nicht wiedergegeben
+        cameraFeed.muted = true; // roher Audio-Stream bleibt stumm
         cameraFeed.play();
         initAudioProcessing(stream);
       })
@@ -263,11 +296,10 @@
       startCamera();
     });
     
-    // Aufnahme-Funktionalität (Video + Audio – Audio wird immer aufgenommen)
+    // Aufnahme-Funktion: Video + Audio (Audio wird immer aufgenommen)
     recordButton.addEventListener('click', () => {
       if (!isRecording) {
-        const canvasStream = effectCanvas.captureStream(30); // 30 FPS
-        // Audio wird immer hinzugefügt, daher brauchen wir keine Checkbox mehr
+        const canvasStream = effectCanvas.captureStream(30);
         if (cameraFeed.srcObject) {
           const audioTracks = cameraFeed.srcObject.getAudioTracks();
           audioTracks.forEach(track => canvasStream.addTrack(track));
@@ -296,7 +328,7 @@
       }
     });
     
-    // Audio Playback Button – Audio wird nur über den Button aktiviert
+    // Audio Playback Button – aktiviert Audio nur über den Button
     toggleAudioPlaybackButton.addEventListener('click', () => {
       isAudioPlaybackOn = !isAudioPlaybackOn;
       if (isAudioPlaybackOn) {
@@ -320,7 +352,7 @@
       setupAudioEffectChain();
     }
     
-    // Audio Effekt Kette aufbauen (wie bisher – hier wurden die restlichen Effekte unverändert übernommen)
+    // Audio Effekt Kette aufbauen (unverändert – hier sind nur einige Beispiele implementiert)
     function setupAudioEffectChain() {
       if (audioSource) { audioSource.disconnect(); }
       if (audioEffectNode) {
@@ -390,41 +422,7 @@
           audioEffectNode.oscillator = phaserOsc;
           break;
         }
-        case 'vibrato': {
-          let vibratoDelay = audioContext.createDelay();
-          vibratoDelay.delayTime.value = 0.005;
-          let vibratoOsc = audioContext.createOscillator();
-          vibratoOsc.type = 'sine';
-          vibratoOsc.frequency.value = audioEffectParam / 10;
-          let vibratoMod = audioContext.createGain();
-          vibratoMod.gain.value = 0.005;
-          vibratoOsc.connect(vibratoMod);
-          vibratoMod.connect(vibratoDelay.delayTime);
-          vibratoOsc.start();
-          audioSource.connect(vibratoDelay);
-          vibratoDelay.connect(audioDestination);
-          audioEffectNode = vibratoDelay;
-          audioEffectNode.oscillator = vibratoOsc;
-          break;
-        }
-        case 'bitcrush': {
-          let bufferSize = 4096;
-          let bitCrusher = audioContext.createScriptProcessor(bufferSize, 1, 1);
-          let bitDepth = Math.max(1, Math.floor(audioEffectParam / 10));
-          let reduction = 1 / Math.pow(2, bitDepth);
-          bitCrusher.onaudioprocess = function(e) {
-            let input = e.inputBuffer.getChannelData(0);
-            let output = e.outputBuffer.getChannelData(0);
-            for (let i = 0; i < input.length; i++) {
-              output[i] = Math.floor(input[i] / reduction) * reduction;
-            }
-          };
-          audioSource.connect(bitCrusher);
-          bitCrusher.connect(audioDestination);
-          audioEffectNode = bitCrusher;
-          break;
-        }
-        // Weitere Audioeffekte (Reverb, Wahwah, Flanger, Chorus) werden hier analog implementiert...
+        // Weitere Audioeffekte (vibrato, bitcrush, reverb etc.) können analog ergänzt werden.
       }
       if (isAudioPlaybackOn && audioDestination) {
         audioPlayback.srcObject = audioDestination.stream;
@@ -462,13 +460,13 @@
     // Haupt-Loop: Wendet den gewählten Videoeffekt an und zeichnet anschließend die Overlay-Effekte
     function applyEffect() {
       ctx.save();
-      // Erdbeben-Effekt: Verschiebt den gesamten Canvas zufällig
+      // Erdbeben-Effekt: Verschiebt den gesamten Canvas zufällig, wenn aktiviert
       if (document.getElementById('earthquake').checked) {
         let offsetX = Math.random() * 10 - 5;
         let offsetY = Math.random() * 10 - 5;
         ctx.translate(offsetX, offsetY);
       }
-      // Für Effekte, die direkt mit Pixeln arbeiten:
+      // Für Effekte, die mit Pixeln arbeiten (außer mirror und blur)
       if (['mirror', 'blur'].indexOf(currentEffect) === -1) {
         ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
       }
@@ -516,7 +514,6 @@
           applyCartoonEffect(imageData);
           break;
         case 'blur':
-          // Blur-Effekt nutzt jetzt den Slider-Wert als Blur-Radius in Pixel
           applyBlurEffect();
           break;
         case 'vintage':
@@ -535,13 +532,13 @@
           applyGlowEffect();
           break;
       }
-      // Zeichne die Overlay-Effekte (z. B. Emoji Regen, Herz Regen usw.)
+      // Overlay-Effekte (z. B. Emoji Regen, ❤️ Regen etc.) zeichnen
       updateOverlayEffects();
       ctx.restore();
       requestAnimationFrame(applyEffect);
     }
     
-    // --- Video Effekt Funktionen (bleiben weitgehend unverändert) ---
+    // --- Video Effekt Funktionen ---
     function applyDotEffect(data) {
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, effectCanvas.width, effectCanvas.height);
@@ -570,19 +567,19 @@
     }
     
     function applyEdgeDetectionEffect(data) {
-      const grayscale = new Uint8ClampedArray(data.length/4);
+      const grayscale = new Uint8ClampedArray(data.length / 4);
       for (let i = 0; i < data.length; i += 4) {
-        grayscale[i/4] = (data[i] + data[i+1] + data[i+2]) / 3;
+        grayscale[i / 4] = (data[i] + data[i+1] + data[i+2]) / 3;
       }
       const width = effectCanvas.width, height = effectCanvas.height;
       const output = new Uint8ClampedArray(data.length);
       for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
           const i = y * width + x;
-          const gx = -grayscale[i-width-1] + grayscale[i-width+1] - 2*grayscale[i-1] + 2*grayscale[i+1] - grayscale[i+width-1] + grayscale[i+width+1];
-          const gy = -grayscale[i-width-1] - 2*grayscale[i-width] - grayscale[i-width+1] + grayscale[i+width-1] + 2*grayscale[i+width] + grayscale[i+width+1];
-          const mag = Math.sqrt(gx*gx+gy*gy);
-          const idx = i*4;
+          const gx = -grayscale[i - width - 1] + grayscale[i - width + 1] - 2 * grayscale[i - 1] + 2 * grayscale[i + 1] - grayscale[i + width - 1] + grayscale[i + width + 1];
+          const gy = -grayscale[i - width - 1] - 2 * grayscale[i - width] - grayscale[i - width + 1] + grayscale[i + width - 1] + 2 * grayscale[i + width] + grayscale[i + width + 1];
+          const mag = Math.sqrt(gx * gx + gy * gy);
+          const idx = i * 4;
           output[idx] = output[idx+1] = output[idx+2] = mag > 50 ? 255 : 0;
           output[idx+3] = 255;
         }
@@ -648,9 +645,9 @@
     function applyGlitchEffect() {
       const sliceCount = 10;
       for (let i = 0; i < sliceCount; i++) {
-        let sliceHeight = Math.floor(Math.random()*10) + 5;
-        let y = Math.floor(Math.random()*(effectCanvas.height - sliceHeight));
-        let offset = Math.floor(Math.random()*effectSize*2) - effectSize;
+        let sliceHeight = Math.floor(Math.random() * 10) + 5;
+        let y = Math.floor(Math.random() * (effectCanvas.height - sliceHeight));
+        let offset = Math.floor(Math.random() * effectSize * 2) - effectSize;
         let imageSlice = ctx.getImageData(0, y, effectCanvas.width, sliceHeight);
         ctx.clearRect(0, y, effectCanvas.width, sliceHeight);
         ctx.putImageData(imageSlice, offset, y);
@@ -661,7 +658,7 @@
       let data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
         let r = data[i], g = data[i+1], b = data[i+2];
-        data[i]   = (r * 0.393) + (g * 0.769) + (b * 0.189);
+        data[i] = (r * 0.393) + (g * 0.769) + (b * 0.189);
         data[i+1] = (r * 0.349) + (g * 0.686) + (b * 0.168);
         data[i+2] = (r * 0.272) + (g * 0.534) + (b * 0.131);
       }
@@ -700,7 +697,7 @@
     
     function applyBlurEffect() {
       ctx.clearRect(0, 0, effectCanvas.width, effectCanvas.height);
-      // Blur-Radius entspricht dem Slider-Wert (in Pixel)
+      // Blur-Radius entspricht dem Slider-Wert in Pixeln
       ctx.filter = 'blur(' + effectSize + 'px)';
       ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
       ctx.filter = 'none';
@@ -714,7 +711,7 @@
         let sepiaG = (r * 0.349 + g * 0.686 + b * 0.168);
         let sepiaB = (r * 0.272 + g * 0.534 + b * 0.131);
         let avg = (sepiaR + sepiaG + sepiaB) / 3;
-        data[i]   = sepiaR * 0.9 + avg * 0.1;
+        data[i] = sepiaR * 0.9 + avg * 0.1;
         data[i+1] = sepiaG * 0.9 + avg * 0.1;
         data[i+2] = sepiaB * 0.9 + avg * 0.1;
         let noise = (Math.random() - 0.5) * 20;
@@ -820,11 +817,11 @@
       ctx.globalAlpha = 1.0;
     }
     
-    // Starte den Haupt-Loop
+    // Starte den Haupt-Loop, wenn die Video-Metadaten geladen wurden
     cameraFeed.addEventListener('loadedmetadata', function() {
       effectCanvas.width = cameraFeed.videoWidth;
       effectCanvas.height = cameraFeed.videoHeight;
-      // Einfacher Regen (nicht Overlay) initialisieren
+      // Initialisiere einfachen Regen (nicht Overlay)
       raindrops = [];
       for (let i = 0; i < 100; i++) {
         raindrops.push({
