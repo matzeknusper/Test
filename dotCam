@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Camera & Audio Effects</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #videoContainer {
+      display: flex;
+      justify-content: space-between;
+    }
+    video,
+    canvas {
+      width: 45%;
+      max-width: 400px;
+      border: 1px solid #ccc;
+    }
+    input[type="range"],
+    select,
+    button {
+      display: block;
+      margin: 15px 0;
+    }
+    label.checkboxLabel {
+      margin: 10px 0;
+      display: block;
+    }
+    .effect-group {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Live Camera & Audio Effects</h1>
+  <button id="switchCamera">Switch Camera</button>
+  <button id="recordButton">Record</button>
+  <label class="checkboxLabel">
+    <input type="checkbox" id="recordAudio" checked> Ton aufnehmen
+  </label>
+  <button id="toggleAudioPlayback">Audio Playback: Off</button>
+
+  <div class="effect-group">
+    <label for="effectSelector">Video Effekt:</label>
+    <select id="effectSelector">
+      <option value="dots">Dots</option>
+      <option value="pixelate">Pixelate</option>
+      <option value="edgeDetection">Edge Detection</option>
+      <option value="hearts">Herzen</option>
+      <option value="rain">Regen</option>
+      <option value="invert">Invert</option>
+      <option value="glitch">Glitch</option>
+      <option value="sepia">Sepia</option>
+      <option value="sketch">Sketch</option>
+      <option value="mirror">Mirror</option>
+      <option value="cartoon">Cartoon</option>
+      <option value="blur">Blur</option>
+      <option value="vintage">Vintage</option>
+      <option value="swirl">Swirl</option>
+      <option value="emboss">Emboss</option>
+      <option value="glow">Glow</option>
+    </select>
+    <label for="effectSize">Effect Size / Blur-Radius: <span id="effectSizeValue">5</span></label>
+    <input type="range" id="effectSize" min="1" max="20" value="5" />
+  </div>
+
+  <div class="effect-group">
+    <label for="audioEffectSelector">Audio Effekt:</label>
+    <select id="audioEffectSelector">
+      <option value="none">Kein Effekt</option>
+      <option value="distortion">Distortion</option>
+      <option value="robotic">Robotic (Tremolo)</option>
+      <option value="echo">Echo</option>
+      <option value="phaser">Phaser</option>
+      <option value="vibrato">Vibrato</option>
+      <option value="bitcrush">Bitcrusher</option>
+      <option value="reverb">Reverb</option>
+      <option value="wahwah">Wahwah</option>
+      <option value="flanger">Flanger</option>
+      <option value="chorus">Chorus</option>
+    </select>
+    <label for="audioEffectSlider">Audio Effekt Intensität: <span id="audioEffectSliderValue">50</span></label>
+    <input type="range" id="audioEffectSlider" min="0" max="100" value="50" />
+  </div>
+
+  <div class="effect-group">
+    <h3>Overlay Video Effekte</h3>
+    <!-- Für Emoji Regen: Statt eines festen Emojis wird jetzt "random" übergeben -->
+    <label><input type="checkbox" id="emojiRain"> Emoji Regen (zufällig)</label>
+    <label><input type="checkbox" id="heartRain"> Herz Regen</label>
+    <label><input type="checkbox" id="starRain"> Sternen Regen</label>
+    <label><input type="checkbox" id="poopRain"> Kack Emoji Regen</label>
+    <label><input type="checkbox" id="earthquake"> Erdbeben</label>
+  </div>
+
+  <div id="videoContainer">
+    <video id="cameraFeed" autoplay playsinline></video>
+    <canvas id="effectCanvas"></canvas>
+  </div>
+
+  <!-- Audio-Element startet NICHT automatisch -->
+  <audio id="audioPlayback"></audio>
+
+  <script>
+    // VIDEO-Variablen
+    const cameraFeed = document.getElementById('cameraFeed');
+    const effectCanvas = document.getElementById('effectCanvas');
+    const ctx = effectCanvas.getContext('2d');
+    const effectSizeSlider = document.getElementById('effectSize');
+    const effectSizeValue = document.getElementById('effectSizeValue');
+    const effectSelector = document.getElementById('effectSelector');
+    const switchCameraButton = document.getElementById('switchCamera');
+    const recordButton = document.getElementById('recordButton');
+    const recordAudioCheckbox = document.getElementById('recordAudio');
+
+    // AUDIO-Variablen
+    const toggleAudioPlaybackButton = document.getElementById('toggleAudioPlayback');
+    const audioPlayback = document.getElementById('audioPlayback');
+    const audioEffectSelector = document.getElementById('audioEffectSelector');
+    const audioEffectSlider = document.getElementById('audioEffectSlider');
+    const audioEffectSliderValue = document.getElementById('audioEffectSliderValue');
+
+    let effectSize = parseInt(effectSizeSlider.value);
+    let currentEffect = effectSelector.value;
+    let currentCameraFacing = 'environment'; // 'environment' für Rückkamera, 'user' für Frontkamera
+
+    // Recorder & Recording
+    let recorder;
+    let recordedChunks = [];
+    let isRecording = false;
+
+    // Audio Context und Nodes
+    let audioContext, audioSource, audioDestination;
+    let currentAudioEffect = audioEffectSelector.value; 
+    let audioEffectNode = null;
+    let audioEffectParam = parseInt(audioEffectSlider.value);
+
+    // Flag für Audio Playback
+    let isAudioPlaybackOn = false;
+
+    // Overlay-Effekte: Separate Arrays für die fallenden Objekte
+    let emojiRainDrops = [];
+    let heartRainDrops = [];
+    let starRainDrops = [];
+    let poopRainDrops = [];
+
+    // Für Gesichtserkennung
+    let detectedFaces = [];
+    if ('FaceDetector' in window) {
+      var faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 5 });
+      setInterval(() => {
+        faceDetector.detect(cameraFeed).then(faces => { detectedFaces = faces; })
+          .catch(err => console.error(err));
+      }, 1000);
+    }
+
+    // Hilfsfunktion zum Initialisieren von Overlay-Drops  
+    // Wenn der Parameter "emoji" gleich "random" ist, wird ein zufälliges Emoji aus einer Liste gewählt.
+    function initOverlayDrops(dropArray, emoji) {
+      const randomEmojis = ["😀", "😂", "😎", "😍", "😜", "🤩", "😇", "😃", "😄", "😆"];
+      dropArray.length = 0;
+      for (let i = 0; i < 20; i++) {
+        let chosenEmoji = (emoji === "random") ? randomEmojis[Math.floor(Math.random() * randomEmojis.length)] : emoji;
+        dropArray.push({
+          x: Math.random() * effectCanvas.width,
+          y: Math.random() * effectCanvas.height,
+          speed: 2 + Math.random() * 3,
+          size: 20 + Math.random() * 20,
+          emoji: chosenEmoji
+        });
+      }
+    }
+
+    // Update-Funktion für alle Overlay-Effekte  
+    function updateOverlayEffects() {
+      // Emoji Regen: zufällige Emojis  
+      if (document.getElementById('emojiRain').checked) {
+        if (emojiRainDrops.length === 0) initOverlayDrops(emojiRainDrops, "random");
+        emojiRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          // Prüfe Kollision mit erkannter Gesichter (falls vorhanden)
+          detectedFaces.forEach(face => {
+            let { x, y, width, height } = face.boundingBox;
+            if (drop.x >= x && drop.x <= x + width && drop.y >= y && drop.y <= y + height) {
+              // Einfacher Bounce: Emoji prallt ab (Richtung umkehren, und etwas nach oben versetzen)
+              drop.speed = -Math.abs(drop.speed);
+              drop.y = y - drop.size;
+            }
+          });
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+          // Wenn das Emoji nach oben hinausfliegt, lasse es wieder normal fallen
+          if (drop.y < -drop.size) { drop.speed = Math.abs(drop.speed); }
+        });
+      } else { emojiRainDrops = []; }
+
+      // Herz Regen (feste Emoji "❤️")
+      if (document.getElementById('heartRain').checked) {
+        if (heartRainDrops.length === 0) initOverlayDrops(heartRainDrops, "❤️");
+        heartRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+        });
+      } else { heartRainDrops = []; }
+
+      // Sternen Regen (feste Emoji "⭐")
+      if (document.getElementById('starRain').checked) {
+        if (starRainDrops.length === 0) initOverlayDrops(starRainDrops, "⭐");
+        starRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+        });
+      } else { starRainDrops = []; }
+
+      // Kack Emoji Regen (feste Emoji "💩")
+      if (document.getElementById('poopRain').checked) {
+        if (poopRainDrops.length === 0) initOverlayDrops(poopRainDrops, "💩");
+        poopRainDrops.forEach(drop => {
+          ctx.font = drop.size + "px sans-serif";
+          ctx.fillText(drop.emoji, drop.x, drop.y);
+          drop.y += drop.speed;
+          if (drop.y > effectCanvas.height) { drop.y = -drop.size; drop.x = Math.random() * effectCanvas.width; }
+        });
+      } else { poopRainDrops = []; }
+    }
+
+    // Kamera starten – raw Audio vom Video wird nicht abgespielt (stummgeschaltet)
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: currentCameraFacing },
+        audio: true
+      })
+      .then(stream => {
+        cameraFeed.srcObject = stream;
+        cameraFeed.muted = true; // Damit der rohe Audio-Stream nicht abgespielt wird
+        cameraFeed.play();
+        initAudioProcessing(stream);
+      })
+      .catch(err => { console.error("Error accessing the camera:", err); });
+    }
+    startCamera();
+
+    switchCameraButton.addEventListener('click', () => {
+      currentCameraFacing = (currentCameraFacing === 'environment') ? 'user' : 'environment';
+      if (cameraFeed.srcObject) {
+        cameraFeed.srcObject.getTracks().forEach(track => track.stop());
+      }
+      startCamera();
+    });
+
+    // Aufnahme-Funktionalität (Video + ggf. Audio)
+    recordButton.addEventListener('click', () => {
+      if (!isRecording) {
+        const canvasStream = effectCanvas.captureStream(30); // 30 FPS
+        if (recordAudioCheckbox.checked && cameraFeed.srcObject) {
+          const audioTracks = cameraFeed.srcObject.getAudioTracks();
+          audioTracks.forEach(track => canvasStream.addTrack(track));
+        }
+        recorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm' });
+        recorder.ondataavailable = event => { if (event.data.size > 0) recordedChunks.push(event.data); };
+        recorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = 'recording.webm';
+          document.body.appendChild(a);
+          a.click();
+          URL.revokeObjectURL(url);
+          recordedChunks = [];
+        };
+        recorder.start();
+        recordButton.textContent = 'Stop Recording';
+        isRecording = true;
+      } else {
+        recorder.stop();
+        recordButton.textContent = 'Record';
+        isRecording = false;
+      }
+    });
+
+    // Audio Playback Button – Audio wird nur über den Button aktiviert
+    toggleAudioPlaybackButton.addEventListener('click', () => {
+      isAudioPlaybackOn = !isAudioPlaybackOn;
+      if (isAudioPlaybackOn) {
+        if (audioDestination) {
+          audioPlayback.srcObject = audioDestination.stream;
+          audioPlayback.play();
+        }
+        toggleAudioPlaybackButton.textContent = 'Audio Playback: On';
+      } else {
+        audioPlayback.pause();
+        audioPlayback.srcObject = null;
+        toggleAudioPlaybackButton.textContent = 'Audio Playback: Off';
+      }
+    });
+
+    // Initialisiere AudioProcessing
+    function initAudioProcessing(stream) {
+      if (!audioContext) { audioContext = new AudioContext(); }
+      audioSource = audioContext.createMediaStreamSource(stream);
+      audioDestination = audioContext.createMediaStreamDestination();
+      setupAudioEffectChain();
+    }
+
+    // Audio Effekt Kette aufbauen (wie bisher)
+    function setupAudioEffectChain() {
+      if (audioSource) { audioSource.disconnect(); }
+      if (audioEffectNode) {
+        if (audioEffectNode.oscillator) { audioEffectNode.oscillator.stop(); }
+        audioEffectNode.disconnect();
+        audioEffectNode = null;
+      }
+      currentAudioEffect = audioEffectSelector.value;
+      audioEffectParam = parseInt(audioEffectSlider.value);
+      switch(currentAudioEffect) {
+        case 'none':
+          audioSource.connect(audioDestination);
+          break;
+        case 'distortion': {
+          let distortion = audioContext.createWaveShaper();
+          distortion.curve = makeDistortionCurve(audioEffectParam);
+          distortion.oversample = '4x';
+          audioSource.connect(distortion);
+          distortion.connect(audioDestination);
+          audioEffectNode = distortion;
+          break;
+        }
+        // ... (weitere Audioeffekte wie bisher, hier unverändert)
+        case 'robotic': {
+          let tremoloGain = audioContext.createGain();
+          let oscillator = audioContext.createOscillator();
+          oscillator.type = 'sine';
+          oscillator.frequency.value = audioEffectParam / 10;
+          let modulation = audioContext.createGain();
+          modulation.gain.value = 0.5;
+          oscillator.connect(modulation);
+          modulation.connect(tremoloGain.gain);
+          oscillator.start();
+          audioSource.connect(tremoloGain);
+          tremoloGain.connect(audioDestination);
+          audioEffectNode = tremoloGain;
+          audioEffectNode.oscillator = oscillator;
+          break;
+        }
+        // Die restlichen Audioeffekte bleiben unverändert...
+        case 'echo': {
+          let delay = audioContext.createDelay();
+          delay.delayTime.value = audioEffectParam / 100;
+          let feedback = audioContext.createGain();
+          feedback.gain.value = 0.4;
+          delay.connect(feedback);
+          feedback.connect(delay);
+          audioSource.connect(delay);
+          delay.connect(audioDestination);
+          audioSource.connect(audioDestination);
+          audioEffectNode = delay;
+          break;
+        }
+        // ... (Phaser, Vibrato, Bitcrush, Reverb, Wahwah, Flanger, Chorus)
+        case 'phaser': {
+          let phaser = audioContext.createBiquadFilter();
+          phaser.type = 'allpass';
+          phaser.frequency.value = 1000;
+          let phaserOsc = audioContext.createOscillator();
+          phaserOsc.type = 'sine';
+          phaserOsc.frequency.value = audioEffectParam / 10;
+          let phaserMod = audioContext.createGain();
+          phaserMod.gain.value = 500;
+          phaserOsc.connect(phaserMod);
+          phaserMod.connect(phaser.frequency);
+          phaserOsc.start();
+          audioSource.connect(phaser);
+          phaser.connect(audioDestination);
+          audioEffectNode = phaser;
+          audioEffectNode.oscillator = phaserOsc;
+          break;
+        }
+        // ... (Restliche Audioeffekte analog)
+      }
+      if (isAudioPlaybackOn && audioDestination) {
+        audioPlayback.srcObject = audioDestination.stream;
+      }
+    }
+
+    // Hilfsfunktion für Distortion
+    function makeDistortionCurve(amount) {
+      let n_samples = 44100;
+      let curve = new Float32Array(n_samples);
+      let deg = Math.PI / 180;
+      for (let i = 0; i < n_samples; ++i) {
+        let x = i * 2 / n_samples - 1;
+        curve[i] = (3 + amount) * x * 20 * deg / (Math.PI + amount * Math.abs(x));
+      }
+      return curve;
+    }
+
+    // Event Listener für Audioeffekt-Änderungen
+    audioEffectSelector.addEventListener('change', () => { setupAudioEffectChain(); });
+    audioEffectSlider.addEventListener('input', (e) => {
+      audioEffectSliderValue.textContent = e.target.value;
+      setupAudioEffectChain();
+    });
+
+    // Event Listener für Videoeffekt-Größe
+    effectSizeSlider.addEventListener('input', (e) => {
+      effectSize = parseInt(e.target.value);
+      effectSizeValue.textContent = e.target.value;
+      if (currentEffect === 'rain') { /* ggf. neu initialisieren */ }
+    });
+    effectSelector.addEventListener('change', () => {
+      currentEffect = effectSelector.value;
+    });
+
+    // Haupt-Loop: Wendet den gewählten Videoeffekt an und zeichnet anschließend die Overlay-Effekte  
+    function applyEffect() {
+      ctx.save();
+      // Erdbeben-Effekt: Verschiebt den gesamten Canvas zufällig
+      if (document.getElementById('earthquake').checked) {
+        let offsetX = Math.random() * 10 - 5;
+        let offsetY = Math.random() * 10 - 5;
+        ctx.translate(offsetX, offsetY);
+      }
+      // Für Effekte, die direkt mit Pixeln arbeiten:
+      if (['mirror', 'blur'].indexOf(currentEffect) === -1) {
+        ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
+      }
+      let imageData;
+      switch (currentEffect) {
+        case 'dots':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyDotEffect(imageData.data);
+          break;
+        case 'pixelate':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyPixelateEffect(imageData.data);
+          break;
+        case 'edgeDetection':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyEdgeDetectionEffect(imageData.data);
+          break;
+        case 'hearts':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyHeartsEffect(imageData.data);
+          break;
+        case 'rain':
+          applyRainEffect();
+          break;
+        case 'invert':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyInvertEffect(imageData);
+          break;
+        case 'glitch':
+          applyGlitchEffect();
+          break;
+        case 'sepia':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applySepiaEffect(imageData);
+          break;
+        case 'sketch':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applySketchEffect(imageData);
+          break;
+        case 'mirror':
+          applyMirrorEffect();
+          break;
+        case 'cartoon':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyCartoonEffect(imageData);
+          break;
+        case 'blur':
+          applyBlurEffect();
+          break;
+        case 'vintage':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyVintageEffect(imageData);
+          break;
+        case 'swirl':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applySwirlEffect(imageData);
+          break;
+        case 'emboss':
+          imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+          applyEmbossEffect(imageData);
+          break;
+        case 'glow':
+          applyGlowEffect();
+          break;
+      }
+      // Zeichne die Overlay-Effekte (inkl. Emoji Regen, der nun auf erkannte Gesichter reagiert)
+      updateOverlayEffects();
+      ctx.restore();
+      requestAnimationFrame(applyEffect);
+    }
+
+    // --- Video Effekt Funktionen (unverändert bzw. wie gehabt) ---
+    function applyDotEffect(data)
