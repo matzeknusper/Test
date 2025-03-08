@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Camera Effects</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #videoContainer {
+            display: flex;
+            justify-content: space-between;
+        }
+        video, canvas {
+            width: 45%;
+            max-width: 400px;
+            border: 1px solid #ccc;
+        }
+        input[type="range"], select, button {
+            display: block;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live Camera Effects</h1>
+    <button id="switchCamera">Switch Camera</button>
+    <div id="videoContainer">
+        <video id="cameraFeed" autoplay playsinline></video>
+        <canvas id="effectCanvas"></canvas>
+    </div>
+    <label for="effectSize">Effect Size: <span id="effectSizeValue">5</span></label>
+    <input type="range" id="effectSize" min="1" max="20" value="5">
+    <select id="effectSelector">
+        <option value="dots">Dots</option>
+        <option value="pixelate">Pixelate</option>
+        <option value="edgeDetection">Edge Detection</option>
+    </select>
+
+    <script>
+        const cameraFeed = document.getElementById('cameraFeed');
+        const effectCanvas = document.getElementById('effectCanvas');
+        const ctx = effectCanvas.getContext('2d');
+        const effectSizeSlider = document.getElementById('effectSize');
+        const effectSizeValue = document.getElementById('effectSizeValue');
+        const effectSelector = document.getElementById('effectSelector');
+        const switchCameraButton = document.getElementById('switchCamera');
+
+        let effectSize = 5;
+        let currentEffect = 'dots';
+        let currentCameraFacing = 'environment'; // 'environment' for back camera, 'user' for front camera
+
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCameraFacing } })
+                .then(stream => {
+                    cameraFeed.srcObject = stream;
+                    cameraFeed.play();
+                })
+                .catch(err => {
+                    console.error("Error accessing the camera:", err);
+                });
+        }
+
+        startCamera();
+
+        switchCameraButton.addEventListener('click', () => {
+            currentCameraFacing = currentCameraFacing === 'environment' ? 'user' : 'environment';
+            if (cameraFeed.srcObject) {
+                cameraFeed.srcObject.getTracks().forEach(track => track.stop());
+            }
+            startCamera();
+        });
+
+        cameraFeed.addEventListener('loadedmetadata', function() {
+            effectCanvas.width = cameraFeed.videoWidth;
+            effectCanvas.height = cameraFeed.videoHeight;
+            applyEffect();
+        });
+
+        function applyEffect() {
+            ctx.drawImage(cameraFeed, 0, 0, effectCanvas.width, effectCanvas.height);
+            const imageData = ctx.getImageData(0, 0, effectCanvas.width, effectCanvas.height);
+            const data = imageData.data;
+
+            switch (currentEffect) {
+                case 'dots':
+                    applyDotEffect(data);
+                    break;
+                case 'pixelate':
+                    applyPixelateEffect(data);
+                    break;
+                case 'edgeDetection':
+                    applyEdgeDetectionEffect(data);
+                    break;
+            }
+
+            requestAnimationFrame(applyEffect);
+        }
+
+        function applyDotEffect(data) {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, effectCanvas.width, effectCanvas.height);
+
+            for (let y = 0; y < effectCanvas.height; y += effectSize) {
+                for (let x = 0; x < effectCanvas.width; x += effectSize) {
+                    const i = (y * effectCanvas.width + x) * 4;
+                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    const radius = (effectSize / 2) * (1 - avg / 255);
+
+                    ctx.beginPath();
+                    ctx.arc(x + effectSize / 2, y + effectSize / 2, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'black';
+                    ctx.fill();
+                }
+            }
+        }
+
+        function applyPixelateEffect(data) {
+            for (let y = 0; y < effectCanvas.height; y += effectSize) {
+                for (let x = 0; x < effectCanvas.width; x += effectSize) {
+                    const i = (y * effectCanvas.width + x) * 4;
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+
+                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    ctx.fillRect(x, y, effectSize, effectSize);
+                }
+            }
+        }
+
+        function applyEdgeDetectionEffect(data) {
+            const grayscale = new Uint8ClampedArray(data.length / 4);
+            for (let i = 0; i < data.length; i += 4) {
+                grayscale[i / 4] = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            }
+
+            const width = effectCanvas.width;
+            const height = effectCanvas.height;
+            const output = new Uint8ClampedArray(data.length);
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const i = y * width + x;
+                    const gx = 
+                        -grayscale[i - width - 1] +
+                        grayscale[i - width + 1] +
+                        -2 * grayscale[i - 1] +
+                        2 * grayscale[i + 1] +
+                        -grayscale[i + width - 1] +
+                        grayscale[i + width + 1];
+                    const gy = 
+                        -grayscale[i - width - 1] +
+                        -2 * grayscale[i - width] +
+                        -grayscale[i - width + 1] +
+                        grayscale[i + width - 1] +
+                        2 * grayscale[i + width] +
+                        grayscale[i + width + 1];
+
+                    const mag = Math.sqrt(gx * gx + gy * gy);
+                    const idx = i * 4;
+                    output[idx] = output[idx + 1] = output[idx + 2] = mag > 50 ? 255 : 0;
+                    output[idx + 3] = 255;
+                }
+            }
+
+            ctx.putImageData(new ImageData(output, width, height), 0, 0);
+        }
+
+        effectSizeSlider.addEventListener('input', function() {
+            effectSize = parseInt(this.value);
+            effectSizeValue.textContent = effectSize;
+        });
+
+        effectSelector.addEventListener('change', function() {
+            currentEffect = this.value;
+        });
+    </script>
+</body>
+</html>
+
